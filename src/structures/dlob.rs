@@ -1,6 +1,7 @@
 use crate::structures::common::{self, StructureError};
 
 /// Struct to store DLOB header info
+#[derive(Debug, Default, Clone)]
 pub struct DlobHeader {
     pub data_size: usize,
     pub header_size: usize,
@@ -31,28 +32,27 @@ pub fn parse_dlob_header(dlob_data: &[u8]) -> Result<DlobHeader, StructureError>
         // It is expected that the first header is metadata only
         if dlob_header_p1["data_size"] == 0 {
             // Parse the second part of the header
-            if let Some(header_p2_data) = dlob_data.get(dlob_header_p2_offset..) {
-                if let Ok(dlob_header_p2) = common::parse(header_p2_data, &dlob_structure_p2, "big")
-                {
-                    // Both parts should have the same magic bytes
-                    if dlob_header_p1["magic"] == dlob_header_p2["magic"] {
-                        // Calculate total header size
-                        let header_total_size: usize = dlob_header_p2_offset
-                            + common::size(&dlob_structure_p2)
-                            + dlob_header_p2["metadata_size"];
+            if let Some(header_p2_data) = dlob_data.get(dlob_header_p2_offset..)
+                && let Ok(dlob_header_p2) = common::parse(header_p2_data, &dlob_structure_p2, "big")
+            {
+                // Both parts should have the same magic bytes
+                if dlob_header_p1["magic"] == dlob_header_p2["magic"] {
+                    // Calculate total header size
+                    let header_total_size: usize = dlob_header_p2_offset
+                        + common::size(&dlob_structure_p2)
+                        + dlob_header_p2["metadata_size"];
 
-                        // Basic sanity check on the reported data size vs header size
-                        if header_total_size < dlob_header_p2["data_size"] {
-                            return Ok(DlobHeader {
-                                header_size: header_total_size,
-                                data_size: dlob_header_p2["data_size"],
-                            });
-                        }
+                    // Basic sanity check on the reported data size vs header size
+                    if header_total_size < dlob_header_p2["data_size"] {
+                        return Ok(DlobHeader {
+                            header_size: header_total_size,
+                            data_size: dlob_header_p2["data_size"],
+                        });
                     }
                 }
             }
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }

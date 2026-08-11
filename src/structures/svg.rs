@@ -30,15 +30,15 @@ pub fn parse_svg_image(svg_data: &[u8]) -> Result<SVGImage, StructureError> {
                 break;
             }
             Ok(svg_tag) => {
-                if svg_tag.is_head == true {
+                if svg_tag.is_head {
                     head_tag_count += 1;
                 }
 
-                if svg_tag.is_open == true {
+                if svg_tag.is_open {
                     unclosed_svg_tags += 1;
                 }
 
-                if svg_tag.is_close == true {
+                if svg_tag.is_close {
                     unclosed_svg_tags -= 1;
                 }
 
@@ -57,7 +57,7 @@ pub fn parse_svg_image(svg_data: &[u8]) -> Result<SVGImage, StructureError> {
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }
 
 /// Stores info about a parsed SVG tag
@@ -82,17 +82,16 @@ fn parse_svg_tag(tag_data: &[u8]) -> Result<SVGTag, StructureError> {
 
     // Tags are expected to start with '<svg' or </svg>', and end with '>'
     for i in 0..tag_data.len() {
-        if tag_data[i] == END_TAG {
-            if let Some(tag_bytes) = tag_data.get(0..i + 1) {
-                if let Ok(tag_string) = String::from_utf8(tag_bytes.to_vec()) {
-                    result.is_open = tag_string.starts_with(&svg_open_tag);
-                    result.is_close = tag_string.starts_with(&svg_close_tag);
-                    result.is_head = tag_string.contains(&svg_head_string);
-                    return Ok(result);
-                }
-            }
+        if tag_data[i] == END_TAG
+            && let Some(tag_bytes) = tag_data.get(0..i + 1)
+            && let Ok(tag_string) = String::from_utf8(tag_bytes.to_vec())
+        {
+            result.is_open = tag_string.starts_with(&svg_open_tag);
+            result.is_close = tag_string.starts_with(&svg_close_tag);
+            result.is_head = tag_string.contains(&svg_head_string);
+            return Ok(result);
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }

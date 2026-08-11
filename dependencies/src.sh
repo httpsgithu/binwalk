@@ -29,13 +29,3 @@ make dmg2img HAVE_LZFSE=1
 make install
 cd /tmp
 rm -rf /tmp/dmg2img
-
-# Install srec2bin
-mkdir /tmp/srec
-cd /tmp/srec
-wget http://www.goffart.co.uk/s-record/download/srec_151_src.zip
-unzip srec_151_src.zip
-make
-cp srec2bin /usr/local/bin/
-cd /tmp
-rm -rf /tmp/srec

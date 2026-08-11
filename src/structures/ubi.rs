@@ -63,20 +63,20 @@ pub fn parse_ubi_superblock_header(ubi_data: &[u8]) -> Result<UbiSuperBlockHeade
                 // Make sure the group type is valid
                 if sb_header["group_type"] <= MAX_GROUP_TYPE {
                     // Validate the header CRC, which is calculated over the entire header except for the magic bytes and CRC field
-                    if let Some(crc_data) = ubi_data.get(CRC_START_OFFSET..sb_struct_size) {
-                        if ubi_crc(crc_data) == sb_header["header_crc"] {
-                            return Ok(UbiSuperBlockHeader {
-                                leb_size: sb_header["leb_size"],
-                                leb_count: sb_header["leb_count"],
-                            });
-                        }
+                    if let Some(crc_data) = ubi_data.get(CRC_START_OFFSET..sb_struct_size)
+                        && ubi_crc(crc_data) == sb_header["header_crc"]
+                    {
+                        return Ok(UbiSuperBlockHeader {
+                            leb_size: sb_header["leb_size"],
+                            leb_count: sb_header["leb_count"],
+                        });
                     }
                 }
             }
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }
 
 /// Stores info about a UBI erase count header
@@ -109,32 +109,24 @@ pub fn parse_ubi_ec_header(ubi_data: &[u8]) -> Result<UbiECHeader, StructureErro
 
     // Parse the first half of the header
     if let Ok(ubi_ec_header) = common::parse(ubi_data, &ubi_ec_structure, "big") {
-        // Padding fields must be NULL
-        if ubi_ec_header["padding1"] == 0
-            && ubi_ec_header["padding2"] == 0
-            && ubi_ec_header["padding3"] == 0
-            && ubi_ec_header["padding4"] == 0
-            && ubi_ec_header["padding5"] == 0
+        // Offsets should be beyond the EC header
+        if ubi_ec_header["data_offset"] >= ec_header_size
+            && ubi_ec_header["volume_id_header_offset"] >= ec_header_size
         {
-            // Offsets should be beyond the EC header
-            if ubi_ec_header["data_offset"] >= ec_header_size
-                && ubi_ec_header["volume_id_header_offset"] >= ec_header_size
+            // Validate the header CRC
+            if let Some(crc_data) = ubi_data.get(0..crc_data_size)
+                && ubi_crc(crc_data) == ubi_ec_header["header_crc"]
             {
-                // Validate the header CRC
-                if let Some(crc_data) = ubi_data.get(0..crc_data_size) {
-                    if ubi_crc(crc_data) == ubi_ec_header["header_crc"] {
-                        return Ok(UbiECHeader {
-                            version: ubi_ec_header["version"],
-                            data_offset: ubi_ec_header["data_offset"],
-                            volume_id_offset: ubi_ec_header["volume_id_header_offset"],
-                        });
-                    }
-                }
+                return Ok(UbiECHeader {
+                    version: ubi_ec_header["version"],
+                    data_offset: ubi_ec_header["data_offset"],
+                    volume_id_offset: ubi_ec_header["volume_id_header_offset"],
+                });
             }
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }
 
 /// Dummy structure indicating a UBI volume header was parsed successfully
@@ -167,7 +159,7 @@ pub fn parse_ubi_volume_header(ubi_data: &[u8]) -> Result<UbiVolumeHeader, Struc
     let crc_data_size: usize = vol_header_size - std::mem::size_of::<u32>();
 
     // Parse the volume header
-    if let Ok(ubi_vol_header) = common::parse(&ubi_data, &ubi_vol_structure, "big") {
+    if let Ok(ubi_vol_header) = common::parse(ubi_data, &ubi_vol_structure, "big") {
         // Sanity check padding fields, they should all be null
         if ubi_vol_header["padding1"] == 0
             && ubi_vol_header["padding2"] == 0
@@ -175,19 +167,19 @@ pub fn parse_ubi_volume_header(ubi_data: &[u8]) -> Result<UbiVolumeHeader, Struc
             && ubi_vol_header["padding4"] == 0
         {
             // Validate the header CRC
-            if let Some(crc_data) = ubi_data.get(0..crc_data_size) {
-                if ubi_crc(crc_data) == ubi_vol_header["header_crc"] {
-                    return Ok(UbiVolumeHeader);
-                }
+            if let Some(crc_data) = ubi_data.get(0..crc_data_size)
+                && ubi_crc(crc_data) == ubi_vol_header["header_crc"]
+            {
+                return Ok(UbiVolumeHeader);
             }
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }
 
 /// Calculate a UBI checksum
 fn ubi_crc(data: &[u8]) -> usize {
     const UBI_CRC_INIT: u32 = 0xFFFFFFFF;
-    return ((!crc32(data)) & UBI_CRC_INIT) as usize;
+    ((!crc32(data)) & UBI_CRC_INIT) as usize
 }

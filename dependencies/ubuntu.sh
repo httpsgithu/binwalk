@@ -5,10 +5,11 @@ SCRIPT_DIRECTORY=$(dirname -- "$( readlink -f -- "$0"; )")
 
 # Install dependencies from apt repository
 DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install \
-    p7zip-full \
+    7zip \
     zstd \
-    unzip \
+    srecord \
     tar \
+    unzip \
     sleuthkit \
     cabextract \
     curl \
@@ -16,7 +17,6 @@ DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install \
     git \
     lz4 \
     lzop \
-    device-tree-compiler \
     unrar \
     unyaffs \
     python3-pip \
@@ -29,15 +29,18 @@ DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install \
     zlib1g-dev \
     libfontconfig1-dev \
     liblzma-dev \
-    libssl-dev
+    libssl-dev \
+    7zip-standalone \
+    cpio \
+    device-tree-compiler
 
 # Install sasquatch Debian package
-curl -L -o sasquatch_1.0.deb "https://github.com/onekey-sec/sasquatch/releases/download/sasquatch-v4.5.1-4/sasquatch_1.0_$(dpkg --print-architecture).deb"
+curl -L -o sasquatch_1.0.deb "https://github.com/onekey-sec/sasquatch/releases/download/sasquatch-v4.5.1-5/sasquatch_1.0_$(dpkg --print-architecture).deb"
 dpkg -i sasquatch_1.0.deb
 rm sasquatch_1.0.deb
 
 # Install Python dependencies
-source ${SCRIPT_DIRECTORY}/pip.sh
+source "${SCRIPT_DIRECTORY}/pip.sh"
 
 # Install dependencies from source
-source ${SCRIPT_DIRECTORY}/src.sh
+source "${SCRIPT_DIRECTORY}/src.sh"

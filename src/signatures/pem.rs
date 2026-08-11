@@ -1,7 +1,7 @@
 use crate::extractors::pem;
-use crate::signatures::common::{SignatureError, SignatureResult, CONFIDENCE_HIGH};
-use base64::prelude::BASE64_STANDARD;
+use crate::signatures::common::{CONFIDENCE_HIGH, SignatureError, SignatureResult};
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 
 /// Human readable descriptions
 pub const PEM_PUBLIC_KEY_DESCRIPTION: &str = "PEM public key";
@@ -10,32 +10,40 @@ pub const PEM_CERTIFICATE_DESCRIPTION: &str = "PEM certificate";
 
 /// Public key magic
 pub fn pem_public_key_magic() -> Vec<Vec<u8>> {
-    return vec![b"-----BEGIN PUBLIC KEY-----".to_vec()];
+    vec![
+        b"-----BEGIN PUBLIC KEY-----".to_vec(),
+        b"-----BEGIN RSA PUBLIC KEY-----".to_vec(),
+        b"-----BEGIN DSA PUBLIC KEY-----".to_vec(),
+        b"-----BEGIN ECDSA PUBLIC KEY-----".to_vec(),
+    ]
 }
 
 /// Private key magics
 pub fn pem_private_key_magic() -> Vec<Vec<u8>> {
-    return vec![
+    vec![
         b"-----BEGIN PRIVATE KEY-----".to_vec(),
         b"-----BEGIN EC PRIVATE KEY-----".to_vec(),
         b"-----BEGIN RSA PRIVATE KEY-----".to_vec(),
         b"-----BEGIN DSA PRIVATE KEY-----".to_vec(),
         b"-----BEGIN OPENSSH PRIVATE KEY-----".to_vec(),
-    ];
+        b"-----BEGIN ANY PRIVATE KEY-----".to_vec(),
+        b"-----BEGIN ENCRYPTED PRIVATE KEY-----".to_vec(),
+        b"-----BEGIN TSS2 PRIVATE KEY-----".to_vec(),
+    ]
 }
 
 /// Certificate magic
 pub fn pem_certificate_magic() -> Vec<Vec<u8>> {
-    return vec![b"-----BEGIN CERTIFICATE-----".to_vec()];
+    vec![b"-----BEGIN CERTIFICATE-----".to_vec()]
 }
 
 /// Validates both PEM certificate and key signatures
-pub fn pem_parser(file_data: &Vec<u8>, offset: usize) -> Result<SignatureResult, SignatureError> {
+pub fn pem_parser(file_data: &[u8], offset: usize) -> Result<SignatureResult, SignatureError> {
     // Enough bytes to uniquely differentiate certs from keys
     const MIN_PEM_LEN: usize = 26;
 
     let mut result = SignatureResult {
-        offset: offset,
+        offset,
         confidence: CONFIDENCE_HIGH,
         ..Default::default()
     };
@@ -65,11 +73,11 @@ pub fn pem_parser(file_data: &Vec<u8>, offset: usize) -> Result<SignatureResult,
     // Sanity check available data
     if let Some(pem_magic) = file_data.get(offset..offset + MIN_PEM_LEN) {
         // Check if this magic is for a PEM cert or a PEM key
-        if public_magics.contains(&pem_magic.to_vec()) == true {
+        if public_magics.contains(&pem_magic.to_vec()) {
             result.description = PEM_PUBLIC_KEY_DESCRIPTION.to_string();
-        } else if private_magics.contains(&pem_magic.to_vec()) == true {
+        } else if private_magics.contains(&pem_magic.to_vec()) {
             result.description = PEM_PRIVATE_KEY_DESCRIPTION.to_string();
-        } else if certificate_magics.contains(&pem_magic.to_vec()) == true {
+        } else if certificate_magics.contains(&pem_magic.to_vec()) {
             result.description = PEM_CERTIFICATE_DESCRIPTION.to_string();
         } else {
             // This function will only be called if one of the magics was found, so this should never happen
@@ -78,23 +86,23 @@ pub fn pem_parser(file_data: &Vec<u8>, offset: usize) -> Result<SignatureResult,
 
         // Do an extraction dry-run to validate that this PEM file looks sane
         let dry_run = pem::pem_carver(file_data, offset, None, None);
-        if dry_run.success == true {
-            if let Some(pem_size) = dry_run.size {
-                // Make sure the PEM data can be base64 decoded
-                if let Ok(_) = decode_pem_data(&file_data[offset..offset + pem_size]) {
-                    // If the file starts and end with this PEM data, no sense in carving it out to another file on disk
-                    if offset == 0 && pem_size == file_data.len() {
-                        result.extraction_declined = true;
-                    }
-
-                    result.size = pem_size;
-                    return Ok(result);
+        if dry_run.success
+            && let Some(pem_size) = dry_run.size
+        {
+            // Make sure the PEM data can be base64 decoded
+            if decode_pem_data(&file_data[offset..offset + pem_size]).is_ok() {
+                // If the file starts and end with this PEM data, no sense in carving it out to another file on disk
+                if offset == 0 && pem_size == file_data.len() {
+                    result.extraction_declined = true;
                 }
+
+                result.size = pem_size;
+                return Ok(result);
             }
         }
     }
 
-    return Err(SignatureError);
+    Err(SignatureError)
 }
 
 /// Base64 decode PEM file contents
@@ -125,7 +133,7 @@ fn decode_pem_data(pem_file_data: &[u8]) -> Result<usize, SignatureError> {
         }
 
         // If we found some text between the delimiters, attempt to base64 decode it
-        if base64_string.len() > 0 {
+        if !base64_string.is_empty() {
             // PEM contents are base64 encoded, they should decode OK; if not, it's a false positive
             if let Ok(decoded_data) = BASE64_STANDARD.decode(&base64_string) {
                 return Ok(decoded_data.len());
@@ -133,5 +141,5 @@ fn decode_pem_data(pem_file_data: &[u8]) -> Result<usize, SignatureError> {
         }
     }
 
-    return Err(SignatureError);
+    Err(SignatureError)
 }

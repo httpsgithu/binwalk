@@ -34,21 +34,21 @@ pub fn parse_romfs_header(romfs_data: &[u8]) -> Result<RomFSHeader, StructureErr
                 }
 
                 // Validate the header CRC
-                if let Some(crc_data) = romfs_data.get(0..crc_data_len) {
-                    if romfs_crc_valid(crc_data) == true {
-                        return Ok(RomFSHeader {
-                            image_size: header["image_size"],
-                            volume_name: volume_name.clone(),
-                            // Volume name has a NULL terminator and is padded to a 16 byte boundary alignment
-                            header_size: header_size + romfs_align(volume_name.len() + 1),
-                        });
-                    }
+                if let Some(crc_data) = romfs_data.get(0..crc_data_len)
+                    && romfs_crc_valid(crc_data)
+                {
+                    return Ok(RomFSHeader {
+                        image_size: header["image_size"],
+                        volume_name: volume_name.clone(),
+                        // Volume name has a NULL terminator and is padded to a 16 byte boundary alignment
+                        header_size: header_size + romfs_align(volume_name.len() + 1),
+                    });
                 }
             }
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }
 
 /// Struct to store info on a RomFS file entry
@@ -106,7 +106,7 @@ pub fn parse_romfs_file_entry(romfs_data: &[u8]) -> Result<RomFSFileHeader, Stru
             let file_name = get_cstring(file_name_bytes);
 
             // A file should have a name
-            if file_name.len() > 0 {
+            if !file_name.is_empty() {
                 // Instantiate a new RomFSEntry structure
                 let mut file_header = RomFSFileHeader {
                     ..Default::default()
@@ -144,7 +144,7 @@ pub fn parse_romfs_file_entry(romfs_data: &[u8]) -> Result<RomFSFileHeader, Stru
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }
 
 /// RomFS aligns things to a 16-byte boundary
@@ -158,7 +158,7 @@ fn romfs_align(x: usize) -> usize {
         padding = ALIGNMENT - remainder;
     }
 
-    return x + padding;
+    x + padding
 }
 
 /// Pretty simple checksum used by RomFS
@@ -166,13 +166,15 @@ fn romfs_crc_valid(crc_data: &[u8]) -> bool {
     let word_size: usize = std::mem::size_of::<u32>();
 
     // Checksum size must be 4-byte aligned
-    if (crc_data.len() % word_size) == 0 {
+    if crc_data.len().is_multiple_of(word_size) {
         let mut i: usize = 0;
         let mut sum: u32 = 0;
 
         // Sum each word
         while i < crc_data.len() {
-            sum += u32::from_be_bytes(crc_data[i..i + word_size].try_into().unwrap());
+            sum = sum.wrapping_add(u32::from_be_bytes(
+                crc_data[i..i + word_size].try_into().unwrap(),
+            ));
             i += word_size;
         }
 
@@ -182,5 +184,5 @@ fn romfs_crc_valid(crc_data: &[u8]) -> bool {
         return sum == 0;
     }
 
-    return false;
+    false
 }

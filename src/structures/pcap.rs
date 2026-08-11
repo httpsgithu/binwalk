@@ -11,7 +11,7 @@ pub struct PcapBlock {
 /// Parse a Pcap-ng block
 pub fn parse_pcapng_block(
     block_data: &[u8],
-    endianness: &String,
+    endianness: &str,
 ) -> Result<PcapBlock, StructureError> {
     // Reserved bit in block type field
     const BLOCK_TYPE_RESERVED_MASK: usize = 0x80000000;
@@ -39,19 +39,17 @@ pub fn parse_pcapng_block(
             let block_footer_end = block_footer_start + footer_size;
 
             // Validate that the block size in the block footer matches the block size in the block header
-            if let Some(block_footer_data) = block_data.get(block_footer_start..block_footer_end) {
-                if let Ok(block_footer) =
+            if let Some(block_footer_data) = block_data.get(block_footer_start..block_footer_end)
+                && let Ok(block_footer) =
                     common::parse(block_footer_data, &block_footer_structure, endianness)
-                {
-                    if block_footer["block_size"] == result.block_size {
-                        return Ok(result);
-                    }
-                }
+                && block_footer["block_size"] == result.block_size
+            {
+                return Ok(result);
             }
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }
 
 #[derive(Debug, Default, Clone)]
@@ -98,5 +96,5 @@ pub fn parse_pcapng_section_block(block_data: &[u8]) -> Result<PcapSectionBlock,
         }
     }
 
-    return Err(StructureError);
+    Err(StructureError)
 }

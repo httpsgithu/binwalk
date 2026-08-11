@@ -1,6 +1,6 @@
 use crate::extractors::jboot::extract_jboot_sch2_kernel;
 use crate::signatures::common::{
-    SignatureError, SignatureResult, CONFIDENCE_HIGH, CONFIDENCE_LOW, CONFIDENCE_MEDIUM,
+    CONFIDENCE_HIGH, CONFIDENCE_LOW, CONFIDENCE_MEDIUM, SignatureError, SignatureResult,
 };
 use crate::structures::jboot::{
     parse_jboot_arm_header, parse_jboot_sch2_header, parse_jboot_stag_header,
@@ -13,30 +13,27 @@ pub const JBOOT_SCH2_DESCRIPTION: &str = "JBOOT SCH2 header";
 
 /// JBOOT firmware header magic bytes
 pub fn jboot_arm_magic() -> Vec<Vec<u8>> {
-    return vec![
-        b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x42\x48\x02\x00\x00\x00"
-            .to_vec(),
-    ];
+    vec![b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x42\x48".to_vec()]
 }
 
 /// JBOOT STAG header magic bytes
 pub fn jboot_stag_magic() -> Vec<Vec<u8>> {
-    return vec![b"\x04\x04\x24\x2B".to_vec(), b"\xFF\x04\x24\x2B".to_vec()];
+    vec![b"\x04\x04\x24\x2B".to_vec(), b"\xFF\x04\x24\x2B".to_vec()]
 }
 
 /// JBOOT SCH2 header magic bytes
 pub fn jboot_sch2_magic() -> Vec<Vec<u8>> {
-    return vec![
+    vec![
         b"\x24\x21\x00\x02".to_vec(),
         b"\x24\x21\x01\x02".to_vec(),
         b"\x24\x21\x02\x02".to_vec(),
         b"\x24\x21\x03\x02".to_vec(),
-    ];
+    ]
 }
 
 /// Parse and validate the JBOOT ARM header
 pub fn jboot_arm_parser(
-    file_data: &Vec<u8>,
+    file_data: &[u8],
     offset: usize,
 ) -> Result<SignatureResult, SignatureError> {
     // Magic bytes start at this offset into the header
@@ -52,34 +49,35 @@ pub fn jboot_arm_parser(
     // Actual header starts MAGIC_OFFSET bytes before the magic bytes
     let header_start = offset - MAGIC_OFFSET;
 
-    if let Some(jboot_data) = file_data.get(header_start..) {
-        if let Ok(arm_header) = parse_jboot_arm_header(jboot_data) {
-            result.size = arm_header.header_size;
-            result.offset = header_start;
-            result.description = format!("{}, header size: {} bytes, ROM ID: {}, erase offset: {:#X}, erase size: {:#X}, data flash offset: {:#X}, data size: {:#X}",
-                result.description,
-                arm_header.header_size,
-                arm_header.rom_id,
-                arm_header.erase_offset,
-                arm_header.erase_size,
-                arm_header.data_offset,
-                arm_header.data_size,
-            );
-            return Ok(result);
-        }
+    if let Some(jboot_data) = file_data.get(header_start..)
+        && let Ok(arm_header) = parse_jboot_arm_header(jboot_data)
+    {
+        result.size = arm_header.header_size;
+        result.offset = header_start;
+        result.description = format!(
+            "{}, header size: {} bytes, ROM ID: {}, erase offset: {:#X}, erase size: {:#X}, data flash offset: {:#X}, data size: {:#X}",
+            result.description,
+            arm_header.header_size,
+            arm_header.rom_id,
+            arm_header.erase_offset,
+            arm_header.erase_size,
+            arm_header.data_offset,
+            arm_header.data_size,
+        );
+        return Ok(result);
     }
 
-    return Err(SignatureError);
+    Err(SignatureError)
 }
 
 /// Parse and validate a JBOOT STAG header
 pub fn jboot_stag_parser(
-    file_data: &Vec<u8>,
+    file_data: &[u8],
     offset: usize,
 ) -> Result<SignatureResult, SignatureError> {
     // Successful return value
     let mut result = SignatureResult {
-        offset: offset,
+        offset,
         description: JBOOT_STAG_DESCRIPTION.to_string(),
         confidence: CONFIDENCE_LOW,
         ..Default::default()
@@ -107,17 +105,17 @@ pub fn jboot_stag_parser(
         }
     }
 
-    return Err(SignatureError);
+    Err(SignatureError)
 }
 
 /// Parse and validate a JBOOT SCH2 header
 pub fn jboot_sch2_parser(
-    file_data: &Vec<u8>,
+    file_data: &[u8],
     offset: usize,
 ) -> Result<SignatureResult, SignatureError> {
     // Successful return value
     let mut result = SignatureResult {
-        offset: offset,
+        offset,
         description: JBOOT_SCH2_DESCRIPTION.to_string(),
         confidence: CONFIDENCE_HIGH,
         ..Default::default()
@@ -125,21 +123,21 @@ pub fn jboot_sch2_parser(
 
     let dry_run = extract_jboot_sch2_kernel(file_data, offset, None);
 
-    if dry_run.success == true {
-        if let Some(total_size) = dry_run.size {
-            if let Ok(sch2_header) = parse_jboot_sch2_header(&file_data[offset..]) {
-                result.size = total_size;
-                result.description = format!("{}, header size: {} bytes, kernel size: {} bytes, kernel compression: {}, kernel entry point: {:#X}",
-                    result.description,
-                    sch2_header.header_size,
-                    sch2_header.kernel_size,
-                    sch2_header.compression,
-                    sch2_header.kernel_entry_point,
-                );
-                return Ok(result);
-            }
-        }
+    if dry_run.success
+        && let Some(total_size) = dry_run.size
+        && let Ok(sch2_header) = parse_jboot_sch2_header(&file_data[offset..])
+    {
+        result.size = total_size;
+        result.description = format!(
+            "{}, header size: {} bytes, kernel size: {} bytes, kernel compression: {}, kernel entry point: {:#X}",
+            result.description,
+            sch2_header.header_size,
+            sch2_header.kernel_size,
+            sch2_header.compression,
+            sch2_header.kernel_entry_point,
+        );
+        return Ok(result);
     }
 
-    return Err(SignatureError);
+    Err(SignatureError)
 }

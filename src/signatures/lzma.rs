@@ -1,5 +1,5 @@
 use crate::extractors::lzma;
-use crate::signatures::common::{SignatureError, SignatureResult, CONFIDENCE_HIGH};
+use crate::signatures::common::{CONFIDENCE_HIGH, SignatureError, SignatureResult};
 use crate::structures::lzma::parse_lzma_header;
 
 /// Human readable description
@@ -41,14 +41,14 @@ pub fn lzma_magic() -> Vec<Vec<u8>> {
         }
     }
 
-    return magic_signatures;
+    magic_signatures
 }
 
 /// Validate LZMA signatures
-pub fn lzma_parser(file_data: &Vec<u8>, offset: usize) -> Result<SignatureResult, SignatureError> {
+pub fn lzma_parser(file_data: &[u8], offset: usize) -> Result<SignatureResult, SignatureError> {
     // Success return value
     let mut result = SignatureResult {
-        offset: offset,
+        offset,
         description: DESCRIPTION.to_string(),
         confidence: CONFIDENCE_HIGH,
         ..Default::default()
@@ -64,21 +64,21 @@ pub fn lzma_parser(file_data: &Vec<u8>, offset: usize) -> Result<SignatureResult
         let dry_run = lzma::lzma_decompress(file_data, offset, None);
 
         // Return success if dry run succeeded
-        if dry_run.success == true {
-            if let Some(lzma_stream_size) = dry_run.size {
-                result.size = lzma_stream_size;
-                result.description = format!(
-                    "{}, properties: {:#04X}, dictionary size: {} bytes, compressed size: {} bytes, uncompressed size: {} bytes",
-                    result.description,
-                    lzma_header.properties,
-                    lzma_header.dictionary_size,
-                    result.size,
-                    lzma_header.decompressed_size
-                );
-                return Ok(result);
-            }
+        if dry_run.success
+            && let Some(lzma_stream_size) = dry_run.size
+        {
+            result.size = lzma_stream_size;
+            result.description = format!(
+                "{}, properties: {:#04X}, dictionary size: {} bytes, compressed size: {} bytes, uncompressed size: {} bytes",
+                result.description,
+                lzma_header.properties,
+                lzma_header.dictionary_size,
+                result.size,
+                lzma_header.decompressed_size as i64
+            );
+            return Ok(result);
         }
     }
 
-    return Err(SignatureError);
+    Err(SignatureError)
 }

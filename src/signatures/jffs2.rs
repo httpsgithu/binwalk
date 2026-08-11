@@ -1,5 +1,5 @@
-use crate::signatures::common::{SignatureError, SignatureResult, CONFIDENCE_HIGH};
-use crate::structures::jffs2::{parse_jffs2_node_header, JFFS2_NODE_STRUCT_SIZE};
+use crate::signatures::common::{CONFIDENCE_HIGH, SignatureError, SignatureResult};
+use crate::structures::jffs2::{JFFS2_NODE_STRUCT_SIZE, parse_jffs2_node_header};
 use aho_corasick::AhoCorasick;
 
 /// Human readable description
@@ -12,27 +12,27 @@ pub fn jffs2_magic() -> Vec<Vec<u8>> {
      * These assume that the first JFFS2 node will be a directory, inode, or clean marker type.
      * Longer signatures are less prone to false positive matches.
      */
-    return vec![
+    vec![
         b"\x19\x85\xe0\x01".to_vec(),
         b"\x19\x85\xe0\x02".to_vec(),
         b"\x19\x85\x20\x03".to_vec(),
         b"\x85\x19\x01\xe0".to_vec(),
         b"\x85\x19\x02\xe0".to_vec(),
         b"\x85\x19\x03\x20".to_vec(),
-    ];
+    ]
 }
 
 /// Parse and validate a JFFS2 image
-pub fn jffs2_parser(file_data: &Vec<u8>, offset: usize) -> Result<SignatureResult, SignatureError> {
+pub fn jffs2_parser(file_data: &[u8], offset: usize) -> Result<SignatureResult, SignatureError> {
     // Useful contstants
-    const MAX_PAGE_SIZE: usize = 0x10000;
+    const MAX_PAGE_SIZE: usize = 0x20000;
     const MIN_VALID_NODE_COUNT: usize = 2;
     const JFFS2_BIG_ENDIAN_MAGIC: &[u8; 2] = b"\x19\x85";
     const JFFS2_LITTLE_ENDIAN_MAGIC: &[u8; 2] = b"\x85\x19";
 
     let mut result = SignatureResult {
         size: 0,
-        offset: offset,
+        offset,
         description: DESCRIPTION.to_string(),
         confidence: CONFIDENCE_HIGH,
         ..Default::default()
@@ -103,7 +103,7 @@ pub fn jffs2_parser(file_data: &Vec<u8>, offset: usize) -> Result<SignatureResul
         }
     }
 
-    return Err(SignatureError);
+    Err(SignatureError)
 }
 
 /// JFFS2 nodes are padded to a 4 byte boundary
@@ -111,5 +111,5 @@ fn roundup(num: usize) -> usize {
     let base: f64 = 4.0;
     let number: f64 = num as f64;
     let div: f64 = number / base;
-    return (base * div.ceil()) as usize;
+    (base * div.ceil()) as usize
 }

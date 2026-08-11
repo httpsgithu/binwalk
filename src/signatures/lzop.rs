@@ -1,5 +1,5 @@
 use crate::common::is_offset_safe;
-use crate::signatures::common::{SignatureError, SignatureResult, CONFIDENCE_HIGH};
+use crate::signatures::common::{CONFIDENCE_HIGH, SignatureError, SignatureResult};
 use crate::structures::lzop::{
     parse_lzop_block_header, parse_lzop_eof_marker, parse_lzop_file_header,
 };
@@ -9,35 +9,34 @@ pub const DESCRIPTION: &str = "LZO compressed data";
 
 /// LZOP magic bytes
 pub fn lzop_magic() -> Vec<Vec<u8>> {
-    return vec![b"\x89LZO\x00\x0D\x0A\x1A\x0A".to_vec()];
+    vec![b"\x89LZO\x00\x0D\x0A\x1A\x0A".to_vec()]
 }
 
 /// Validate an LZOP signature
-pub fn lzop_parser(file_data: &Vec<u8>, offset: usize) -> Result<SignatureResult, SignatureError> {
+pub fn lzop_parser(file_data: &[u8], offset: usize) -> Result<SignatureResult, SignatureError> {
     // Success retrun value
     let mut result = SignatureResult {
-        offset: offset,
+        offset,
         description: DESCRIPTION.to_string(),
         confidence: CONFIDENCE_HIGH,
         ..Default::default()
     };
 
     // Parse the LZOP file header
-    if let Ok(lzop_header) = parse_lzop_file_header(&file_data[offset..]) {
-        if let Some(lzop_data) = file_data.get(offset + lzop_header.header_size..) {
-            // Get the size of the compressed LZO data
-            if let Ok(data_size) = get_lzo_data_size(lzop_data, lzop_header.block_checksum_present)
-            {
-                // Update the total size to include the LZO data
-                result.size = lzop_header.header_size + data_size;
-                result.description =
-                    format!("{}, total size: {} bytes", result.description, result.size);
-                return Ok(result);
-            }
+    if let Ok(lzop_header) = parse_lzop_file_header(&file_data[offset..])
+        && let Some(lzop_data) = file_data.get(offset + lzop_header.header_size..)
+    {
+        // Get the size of the compressed LZO data
+        if let Ok(data_size) = get_lzo_data_size(lzop_data, lzop_header.block_checksum_present) {
+            // Update the total size to include the LZO data
+            result.size = lzop_header.header_size + data_size;
+            result.description =
+                format!("{}, total size: {} bytes", result.description, result.size);
+            return Ok(result);
         }
     }
 
-    return Err(SignatureError);
+    Err(SignatureError)
 }
 
 // Parse the LZO blocks to determine the size of the compressed data, including the terminating EOF marker
@@ -75,13 +74,13 @@ fn get_lzo_data_size(
     // As a sanity check, make sure we processed some number of data blocks
     if block_count >= MIN_BLOCK_COUNT {
         // Process the EOF marker that should come at the end of the data blocks
-        if let Some(eof_marker_data) = lzo_data.get(data_size..) {
-            if let Ok(eof_marker_size) = parse_lzop_eof_marker(eof_marker_data) {
-                data_size += eof_marker_size;
-                return Ok(data_size);
-            }
+        if let Some(eof_marker_data) = lzo_data.get(data_size..)
+            && let Ok(eof_marker_size) = parse_lzop_eof_marker(eof_marker_data)
+        {
+            data_size += eof_marker_size;
+            return Ok(data_size);
         }
     }
 
-    return Err(SignatureError);
+    Err(SignatureError)
 }
